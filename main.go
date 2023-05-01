@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/segfaultax/go-nagios"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -11,19 +13,19 @@ import (
 
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/segfaultax/go-nagios"
 	"github.com/spf13/pflag"
 )
 
 var (
-	showHelp    bool
-	warning     string
-	critical    string
-	host        string
-	metricName  string
-	query       string
-	emptyResult string
-	timeout     int
+	showHelp         bool
+	warning          string
+	critical         string
+	host             string
+	metricName       string
+	query            string
+	emptyResult      string
+	timeout          int
+	timestampSeconds float64
 )
 
 const usage string = `usage: go-check-prometheus [options]
@@ -51,6 +53,8 @@ func init() {
 	pflag.StringVarP(&query, "query", "q", "", "prometheus query")
 
 	pflag.IntVarP(&timeout, "timeout", "t", 30, "Execution timeout")
+
+	pflag.Float64VarP(&timestampSeconds, "timestamp", "m", -1, "Timestamp in seconds")
 }
 
 func main() {
@@ -90,10 +94,10 @@ func main() {
 		Address: host,
 		RoundTripper: (&http.Transport{
 			DialContext: (&net.Dialer{
-				Timeout: timeout_duration*time.Second,
-				KeepAlive: timeout_duration*time.Second,
+				Timeout:   timeout_duration * time.Second,
+				KeepAlive: timeout_duration * time.Second,
 			}).DialContext,
-			TLSHandshakeTimeout: timeout_duration*time.Second,
+			TLSHandshakeTimeout: timeout_duration * time.Second,
 		}),
 	})
 	if err != nil {
@@ -112,7 +116,15 @@ func main() {
 	v1api := v1.NewAPI(client)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout_duration*time.Second)
 	defer cancel()
-	result, warnings, err := v1api.Query(ctx, query, time.Now())
+
+	tm := time.Now()
+	if timestampSeconds != -1 {
+		sec, frac := math.Modf(timestampSeconds)
+		nsec := frac * float64(time.Second.Nanoseconds())
+
+		tm = time.Unix(int64(sec), int64(nsec))
+	}
+	result, warnings, err := v1api.Query(ctx, query, tm)
 	if err != nil {
 		c.Unknown("Error querying Prometheus: %v", err)
 		return
