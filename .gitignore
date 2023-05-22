@@ -7,3 +7,6 @@ go-check-prometheus
 *.dll
 *.so
 *.dylib
+
+.idea
+local
