@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/segfaultax/go-nagios"
-	"math"
 	"net"
 	"net/http"
 	"os"
@@ -17,15 +16,15 @@ import (
 )
 
 var (
-	showHelp         bool
-	warning          string
-	critical         string
-	host             string
-	metricName       string
-	query            string
-	emptyResult      string
-	timeout          int
-	timestampSeconds float64
+	showHelp    bool
+	warning     string
+	critical    string
+	host        string
+	metricName  string
+	query       string
+	emptyResult string
+	timeout     int
+	timestamp   string
 )
 
 const usage string = `usage: go-check-prometheus [options]
@@ -54,7 +53,7 @@ func init() {
 
 	pflag.IntVarP(&timeout, "timeout", "t", 30, "Execution timeout")
 
-	pflag.Float64VarP(&timestampSeconds, "timestamp", "m", -1, "Timestamp in seconds")
+	pflag.StringVarP(&timestamp, "timestamp", "m", "", "Timestamp in seconds")
 }
 
 func main() {
@@ -118,11 +117,18 @@ func main() {
 	defer cancel()
 
 	tm := time.Now()
-	if timestampSeconds != -1 {
-		sec, frac := math.Modf(timestampSeconds)
-		nsec := frac * float64(time.Second.Nanoseconds())
+	if timestamp != "" {
+		parsed, err := time.Parse(time.RFC3339, timestamp)
+		if err != nil {
+			c.Unknown("Invalid : %v", err)
+			return
+		}
+		tm = parsed
 
-		tm = time.Unix(int64(sec), int64(nsec))
+		//tm = time.Now().UTC().Format(timestamp)
+		//sec, frac := math.Modf(timestampSeconds)
+		//nsec := frac * float64(time.Second.Nanoseconds())
+		//tm = time.Unix(int64(sec), int64(nsec))
 	}
 	result, warnings, err := v1api.Query(ctx, query, tm)
 	if err != nil {
